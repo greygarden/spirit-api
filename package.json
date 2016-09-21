@@ -1,0 +1,27 @@
+{
+  "name": "spirit",
+  "version": "0.0.1",
+  "description": "Spirit is a data aggregation / visualisation platform for horticultural monitoring.",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kakushin-labs/spirit.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/kakushin-labs/spirit/issues"
+  },
+  "homepage": "https://github.com/kakushin-labs/spirit#readme",
+  "dependencies": {
+    "koa": "^1.2.4",
+    "koa-parse-json": "^1.0.1",
+    "koa-router": "^5.4.0",
+    "koa-session": "^3.3.1",
+    "pg": "^6.0.3"
+  }
+}
