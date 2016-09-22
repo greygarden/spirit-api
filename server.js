@@ -56,6 +56,8 @@ router.post(
         // Grab the json from the request body
         const body = this.request.body || {};
         console.log(body);
+        this.body = { success: true };
+        yield next;
     }
 );
 

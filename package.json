@@ -18,10 +18,11 @@
   },
   "homepage": "https://github.com/kakushin-labs/spirit#readme",
   "dependencies": {
+    "co-pg": "^2.0.0",
     "koa": "^1.2.4",
     "koa-parse-json": "^1.0.1",
     "koa-router": "^5.4.0",
     "koa-session": "^3.3.1",
-    "pg": "^6.0.3"
+    "pg": "^6.1.0"
   }
 }
