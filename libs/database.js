@@ -15,7 +15,7 @@ module.exports = {
       };
     },
 
-    queryPromise: *(queryString, queryParameters) => {
+    queryPromise: function *(queryString, queryParameters) {
         const connection = yield pg.connectPromise(process.env.DB_CONNECTION_STRING);
         const client = connection[0];
         // The `done` method returns the connection to the pool

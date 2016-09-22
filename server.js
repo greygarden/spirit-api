@@ -8,6 +8,7 @@ const koa       = require('koa');
 const router    = require('koa-router')();
 const body      = require('koa-parse-json')();
 const session   = require('koa-session');
+const database  = require('./libs/database');
 
 
 // Grab the port number to use for the server from the runtime environment
@@ -49,14 +50,34 @@ router.get('/', function *(next) {
     yield next;
 });
 
-// Check a site's SSL certificate
+// Accept a metric for storage
 router.post(
     '/metrics',
     function *(next) {
         // Grab the json from the request body
         const body = this.request.body || {};
-        console.log(body);
         this.body = { success: true };
+        // Create a new row for the worker if we haven't seen it before
+        yield database.queryPromise(database.SQL`INSERT INTO altar_workers (worker_identifier) VALUES (${body.workerIdentifier}) ON CONFLICT (worker_identifier) DO NOTHING`);
+        // Insert the metric
+        yield database.queryPromise(database.SQL`INSERT INTO metrics (worker_identifier, name, value, units) VALUES (${body.workerIdentifier}, ${body.metricName}, ${body.metricValue}, ${body.metricUnits})`);
+        yield next;
+    }
+);
+
+// Returns the last 24 hours of metrics
+router.get(
+    '/metrics',
+    function *(next) {
+        const metricName = this.request.query.metricName;
+        const workerIdentifier = this.request.query.workerIdentifier;
+        const startTimestamp = this.request.query.startTimestamp;
+        const endTimestamp = this.request.query.endTimestamp;
+        const metrics = yield database.queryPromise(database.SQL`SELECT * FROM metrics WHERE worker_identifier = ${workerIdentifier} AND name = ${metricName} AND metric_timestamp > ${startTimestamp} AND metric_timestamp < ${endTimestamp}`);
+        console.log(database.SQL`SELECT * FROM metrics WHERE worker_identifier = ${workerIdentifier} AND name = ${metricName} AND metric_timestamp > ${startTimestamp} AND metric_timestamp < ${endTimestamp}`);
+        this.body = {
+            metrics: metrics.rows
+        }
         yield next;
     }
 );
