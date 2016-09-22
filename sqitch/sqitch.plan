@@ -1,0 +1,5 @@
+%syntax-version=1.0.0
+%project=spirit-api
+%uri=https://github.com/kakushin-labs/spirit-api
+
+backend_api_config 2016-09-22T03:39:36Z root <root@51fd8106b1d3> # Create the backend api config table
