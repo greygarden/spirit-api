@@ -9,6 +9,7 @@ const router    = require('koa-router')();
 const body      = require('koa-parse-json')();
 const session   = require('koa-session');
 const database  = require('./libs/database');
+const io        = require('socket.io')('8082');
 
 
 // Grab the port number to use for the server from the runtime environment
@@ -61,6 +62,8 @@ router.post(
         yield database.queryPromise(database.SQL`INSERT INTO altar_workers (worker_identifier) VALUES (${body.workerIdentifier}) ON CONFLICT (worker_identifier) DO NOTHING`);
         // Insert the metric
         yield database.queryPromise(database.SQL`INSERT INTO metrics (worker_identifier, name, value, units) VALUES (${body.workerIdentifier}, ${body.metricName}, ${body.metricValue}, ${body.metricUnits})`);
+        // Emit an event over any connected web socketes
+        io.emit('metric', body.metricValue);
         yield next;
     }
 );
@@ -73,14 +76,35 @@ router.get(
         const workerIdentifier = this.request.query.workerIdentifier;
         const startTimestamp = this.request.query.startTimestamp;
         const endTimestamp = this.request.query.endTimestamp;
-        const metrics = yield database.queryPromise(database.SQL`SELECT * FROM metrics WHERE worker_identifier = ${workerIdentifier} AND name = ${metricName} AND metric_timestamp > ${startTimestamp} AND metric_timestamp < ${endTimestamp}`);
-        console.log(database.SQL`SELECT * FROM metrics WHERE worker_identifier = ${workerIdentifier} AND name = ${metricName} AND metric_timestamp > ${startTimestamp} AND metric_timestamp < ${endTimestamp}`);
+        const groupBySeconds = this.request.query.groupBySeconds;
+        const metrics = yield database.queryPromise(database.SQL`
+            SELECT to_timestamp(floor((extract('epoch' from metric_timestamp) / ${groupBySeconds} )) * ${groupBySeconds}) as timestamp,
+            avg(value) AS value FROM metrics
+            WHERE worker_identifier = ${workerIdentifier}
+            AND name = ${metricName}
+            AND metric_timestamp > ${startTimestamp}
+            AND metric_timestamp < ${endTimestamp}
+            GROUP BY timestamp
+            ORDER BY timestamp ASC
+        `);
         this.body = {
             metrics: metrics.rows
         }
         yield next;
     }
 );
+
+// Add CORS headers
+app.use(function *(next) {
+    const config = yield require('./libs/config').getConfig();
+    this.set('Access-Control-Allow-Origin', config.web_client_url);
+    this.set('Access-Control-Allow-Credentials', 'true');
+    this.set('Access-Control-Allow-Headers', 'X-Csrf-Token, X-Requested-With');
+    this.set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD');
+    this.set('Access-Control-Max-Age', 300);
+
+    yield next;
+});
 
 
 // Use the routes defined earlier

@@ -11,11 +11,11 @@ let config;
 
 module.exports = {
 
-    getConfig: *() => {
+    getConfig: function *() {
         // Check if the config has already been loaded from the DB
         if (!config) {
             // Get the api config from the database
-            const configResult = yield database.queryPromise(`SELECT * FROM api_config LIMIT 1`);
+            const configResult = yield database.queryPromise(`SELECT * FROM backend_api_config LIMIT 1`);
             // If there were no results, throw an error
             if (configResult.rows.length === 0) {
                 throw new Error('Tried to get config data from the api_config table but no results were found.');
