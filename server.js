@@ -63,12 +63,15 @@ router.post(
         // Insert the metric
         yield database.queryPromise(database.SQL`INSERT INTO metrics (worker_identifier, name, value, units) VALUES (${body.workerIdentifier}, ${body.metricName}, ${body.metricValue}, ${body.metricUnits})`);
         // Emit an event over any connected web socketes
-        io.emit('metric', body.metricValue);
+        io.emit('metric', {
+            value: body.metricValue,
+            units: body.metrivUnits
+        });
         yield next;
     }
 );
 
-// Returns the last 24 hours of metrics
+// Returns a variable amount of metrics grouped in specified ways
 router.get(
     '/metrics',
     function *(next) {
@@ -89,6 +92,50 @@ router.get(
         `);
         this.body = {
             metrics: metrics.rows
+        }
+        yield next;
+    }
+);
+
+// Returns the minimum value of a metric between two timestamps
+router.get(
+    '/metric_min',
+    function *(next) {
+        const metricName = this.request.query.metricName;
+        const workerIdentifier = this.request.query.workerIdentifier;
+        const startTimestamp = this.request.query.startTimestamp;
+        const endTimestamp = this.request.query.endTimestamp;
+        const metrics = yield database.queryPromise(database.SQL`
+            SELECT min(value) AS value FROM metrics
+            WHERE worker_identifier = ${workerIdentifier}
+            AND name = ${metricName}
+            AND metric_timestamp > ${startTimestamp}
+            AND metric_timestamp < ${endTimestamp}
+        `);
+        this.body = {
+            minValue: metrics.rows.length > 0 ? metrics.rows[0].value : 0
+        }
+        yield next;
+    }
+);
+
+// Returns the minimum value of a metric between two timestamps
+router.get(
+    '/metric_max',
+    function *(next) {
+        const metricName = this.request.query.metricName;
+        const workerIdentifier = this.request.query.workerIdentifier;
+        const startTimestamp = this.request.query.startTimestamp;
+        const endTimestamp = this.request.query.endTimestamp;
+        const metrics = yield database.queryPromise(database.SQL`
+            SELECT max(value) AS value FROM metrics
+            WHERE worker_identifier = ${workerIdentifier}
+            AND name = ${metricName}
+            AND metric_timestamp > ${startTimestamp}
+            AND metric_timestamp < ${endTimestamp}
+        `);
+        this.body = {
+            maxValue: metrics.rows.length > 0 ? metrics.rows[0].value : 0
         }
         yield next;
     }
