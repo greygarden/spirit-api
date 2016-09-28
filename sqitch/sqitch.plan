@@ -5,3 +5,4 @@
 backend_api_config 2016-09-22T03:39:36Z root <root@51fd8106b1d3> # Create the backend api config table
 add_altar_workers_table 2016-09-22T06:19:26Z root <root@2d93a4a48107> # Adds a table that keeps track of altar workers.
 add_metrics_table 2016-09-22T06:28:18Z root <root@2d93a4a48107> # Adds the storage table for metrics.
+add_user_table 2016-09-28T06:14:04Z root <root@56c800e7101a> # Adds the user table with email and password info.

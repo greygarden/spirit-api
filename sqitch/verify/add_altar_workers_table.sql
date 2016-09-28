@@ -3,6 +3,7 @@
 BEGIN;
 
 -- XXX Add verifications here.
-    SELECT true FROM altar_workers;
+
+SELECT true FROM altar_workers;
 
 ROLLBACK;

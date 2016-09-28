@@ -4,4 +4,6 @@ BEGIN;
 
 -- XXX Add DDLs here.
 
+DROP TABLE metrics;
+
 COMMIT;

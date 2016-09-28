@@ -10,6 +10,7 @@ const body      = require('koa-parse-json')();
 const session   = require('koa-session');
 const database  = require('./libs/database');
 const io        = require('socket.io')('8082');
+const crypto    = require('crypto');
 
 
 // Grab the port number to use for the server from the runtime environment
@@ -50,6 +51,62 @@ router.get('/', function *(next) {
     this.body = `Spirit by Kakushin Labs.`;
     yield next;
 });
+
+router.post(
+    '/auth/login',
+    function *(next) {
+        const response = {
+            success: false,
+            errors: [],
+            user: null
+        };
+
+        const body = this.request.body || {};
+        const email = body.email;
+        const password = body.password;
+
+        // Get the user's salt from the database
+        const userResult = yield database.queryPromise(database.SQL`SELECT identifier, email, salt FROM users WHERE email = ${email} LIMIT 1`);
+        // If there were no matches for the email, just return failed
+        let success;
+        if (userResult.rows.length === 0) {
+            success = false;
+        } else {
+            const salt = userResult.rows[0].salt;
+
+            const keyBuffer = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha256');
+            const keyString = keyBuffer.toString('hex');
+            const loginResult = yield database.queryPromise(database.SQL`SELECT NULL FROM users WHERE email = ${email} AND password = ${keyString} LIMIT 1`);
+
+            success = loginResult.rowCount === 1;
+        }
+
+        if (success !== true) {
+            response.errors.push('Email or password is incorrect.');
+            this.body = response;
+            yield next;
+            return;
+        }
+
+        if (success && response.errors.length === 0) {
+            response.success = true;
+            this.session = { 'userIdentifier': userResult.rows[0].identifier };
+            response.user = { email: userResult.rows[0].email }
+        }
+
+        this.body = response;
+        yield next;
+    }
+);
+
+router.post(
+    '/auth/logout',
+    function *(next) {
+        this.session = null;
+        this.body = { 'success': true, 'errors': [] };
+        yield next;
+    }
+);
 
 // Accept a metric for storage
 router.post(
@@ -151,6 +208,29 @@ app.use(function *(next) {
     this.set('Access-Control-Max-Age', 300);
 
     yield next;
+});
+
+// Authentication
+app.use(function *(next){
+    // // Only allow login, signup and OPTIONS calls if the request is unauthenticated
+    // if (this.request.url === '/auth/login' || this.request.url === '/auth/signup' || this.request.method === 'OPTIONS') {
+    //     yield next;
+    //     return;
+    // }
+
+    // // If there is a session and a user ID found, allow the request to continue
+    // if (this.session) {
+    //     if (this.session.userIdentifier) {
+    //         yield next;
+    //         return;
+    //     }
+    // }
+
+    // // Otherwise 401 with Unauthorized
+    // this.response.status = 401;
+    // this.response.body = 'Unauthorized';
+    yield next;
+    return;
 });
 
 

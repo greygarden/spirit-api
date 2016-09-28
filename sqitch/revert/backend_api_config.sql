@@ -3,6 +3,7 @@
 BEGIN;
 
 -- XXX Add DDLs here.
-    DROP TABLE backend_api_config;
+
+DROP TABLE backend_api_config;
 
 COMMIT;

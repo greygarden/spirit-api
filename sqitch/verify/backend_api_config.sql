@@ -3,6 +3,7 @@
 BEGIN;
 
 -- XXX Add verifications here.
-    SELECT true FROM backend_api_config;
+
+SELECT true FROM backend_api_config;
 
 ROLLBACK;

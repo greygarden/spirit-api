@@ -3,6 +3,7 @@
 BEGIN;
 
 -- XXX Add DDLs here.
-    DROP TABLE altar_workers;
+
+DROP TABLE altar_workers;
 
 COMMIT;
