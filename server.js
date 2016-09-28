@@ -108,6 +108,18 @@ router.post(
     }
 );
 
+// List available workers
+router.get(
+    'workers',
+    function *(next) {
+        const workers = yield database.queryPromise('SELECT worker_identifier, name FROM altar_workers');
+        this.body = {
+            errors: [],
+            workers: workers.rows
+        }
+    }
+);
+
 // Accept a metric for storage
 router.post(
     '/metrics',
