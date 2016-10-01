@@ -135,8 +135,8 @@ router.post(
         // Grab the json from the request body
         const body = this.request.body || {};
         const graph = yield database.queryPromise(`
-            INSERT INTO graphs (title, worker_identifier, metric_name)
-            VALUES ('${body.title}', '${body.workerIdentifier}', '${body.metricName}')
+            INSERT INTO graphs (type, title, worker_identifier, metric_name)
+            VALUES ('${body.type}', ${body.title}', '${body.workerIdentifier}', '${body.metricName}')
             RETURNING (identifier, title, worker_identifier, metric_name)`
         );
         this.body = {
