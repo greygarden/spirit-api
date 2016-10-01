@@ -136,8 +136,8 @@ router.post(
         const body = this.request.body || {};
         const graph = yield database.queryPromise(`
             INSERT INTO graphs (type, title, worker_identifier, metric_name)
-            VALUES ('${body.type}', ${body.title}', '${body.workerIdentifier}', '${body.metricName}')
-            RETURNING (identifier, title, worker_identifier, metric_name)`
+            VALUES ('${body.type}', '${body.title}', '${body.workerIdentifier}', '${body.metricName}')
+            RETURNING (identifier, type, title, worker_identifier, metric_name)`
         );
         this.body = {
             errors: [],
