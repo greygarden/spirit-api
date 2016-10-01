@@ -7,3 +7,4 @@ add_altar_workers_table 2016-09-22T06:19:26Z root <root@2d93a4a48107> # Adds a t
 add_metrics_table 2016-09-22T06:28:18Z root <root@2d93a4a48107> # Adds the storage table for metrics.
 add_user_table 2016-09-28T06:14:04Z root <root@56c800e7101a> # Adds the user table with email and password info.
 add_worker_name 2016-09-28T22:52:50Z root <root@56c800e7101a> # Adds a name column to the worker table that can be modified by users.
+add_graphs_table 2016-10-01T05:53:10Z root <root@d86345812823> # Create the table for storing graph configurations

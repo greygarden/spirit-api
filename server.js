@@ -108,14 +108,53 @@ router.post(
     }
 );
 
+// Get all graphs
+router.get(
+    '/graphs',
+    function *(next) {
+        const graphs = yield database.queryPromise('SELECT * from graphs');
+        this.body = {
+            errors: [],
+            graphs: graphs.rows.map((graph) => {
+                return { 
+                    identifier: graph.identifier,
+                    type: graph.type,
+                    title: graph.title,
+                    workerIdentifier: graph.worker_identifier,
+                    metricName: graph.metric_name
+                }
+            })
+        }
+    }
+);
+
+// Create a new graph
+router.post(
+    '/create_graph',
+    function *(next) {
+        // Grab the json from the request body
+        const body = this.request.body || {};
+        const graph = yield database.queryPromise(`
+            INSERT INTO graphs (title, worker_identifier, metric_name)
+            VALUES ('${body.title}', '${body.workerIdentifier}', '${body.metricName}')
+            RETURNING (identifier, title, worker_identifier, metric_name)`
+        );
+        this.body = {
+            errors: [],
+            graph: graph.rows[0]
+        }
+        yield next;
+    }
+);
+
 // List available workers
 router.get(
-    'workers',
+    '/workers',
     function *(next) {
         const workers = yield database.queryPromise('SELECT worker_identifier, name FROM altar_workers');
         this.body = {
             errors: [],
-            workers: workers.rows
+            workers: workers.rows.map((worker) => { return { workerIdentifier: worker.worker_identifier, name: worker.name }})
         }
     }
 );
@@ -137,6 +176,24 @@ router.post(
             units: body.metrivUnits
         });
         yield next;
+    }
+);
+
+// List available metrics for a specific worker
+router.get(
+    '/metrics_list',
+    function *(next) {
+        const workerIdentifier = this.request.query.workerIdentifier;
+        const metrics = yield database.queryPromise(database.SQL`
+            SELECT metrics.name
+            FROM metrics
+            INNER JOIN altar_workers
+            ON metrics.worker_identifier = altar_workers.worker_identifier
+            GROUP BY metrics.name`);
+        this.body = {
+            errors: [],
+            metrics: metrics.rows
+        }
     }
 );
 
