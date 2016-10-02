@@ -171,7 +171,7 @@ router.post(
         // Insert the metric
         yield database.queryPromise(database.SQL`INSERT INTO metrics (worker_identifier, name, value, units) VALUES (${body.workerIdentifier}, ${body.metricName}, ${body.metricValue}, ${body.metricUnits})`);
         // Emit an event over any connected web socketes
-        io.emit('metric-' + body.metricName, {
+        io.emit(`metric-${body.workerIdentifier}-${body.metricName}`, {
             value: body.metricValue,
             units: body.metrivUnits
         });
