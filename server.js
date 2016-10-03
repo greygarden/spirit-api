@@ -147,6 +147,22 @@ router.post(
     }
 );
 
+// Delete a graph
+router.post(
+    '/delete_graph',
+    function *(next) {
+        // Grab the json from the request body
+        const body = this.request.body || {};
+        yield database.queryPromise(`
+            DELETE FROM graphs WHERE identifier = ${body.identifier}
+        `);
+        this.body = {
+            errors: []
+        }
+        yield next;
+    }
+);
+
 // List available workers
 router.get(
     '/workers',
