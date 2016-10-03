@@ -121,7 +121,8 @@ router.get(
                     type: graph.type,
                     title: graph.title,
                     workerIdentifier: graph.worker_identifier,
-                    metricName: graph.metric_name
+                    metricName: graph.metric_name,
+                    units: graph.units
                 }
             })
         }
@@ -205,7 +206,8 @@ router.get(
             FROM metrics
             INNER JOIN altar_workers
             ON metrics.worker_identifier = altar_workers.worker_identifier
-            GROUP BY metrics.name`);
+            GROUP BY metrics.name
+            WHERE altar_workers.worker_identifier = ${workerIdentifier}`);
         this.body = {
             errors: [],
             metrics: metrics.rows

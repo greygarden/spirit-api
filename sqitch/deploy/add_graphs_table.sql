@@ -9,7 +9,8 @@ CREATE TABLE graphs (
     title               text,
     worker_identifier   text references altar_workers(worker_identifier),
     metric_name         text,
-    type                text
+    type                text, -- line, bar, stackedLine etc.
+    units               text -- degreesCelcius, rpm, percent etc.
 );
 
 COMMIT;
