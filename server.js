@@ -136,9 +136,9 @@ router.post(
         // Grab the json from the request body
         const body = this.request.body || {};
         const graph = yield database.queryPromise(`
-            INSERT INTO graphs (type, title, worker_identifier, metric_name)
-            VALUES ('${body.type}', '${body.title}', '${body.workerIdentifier}', '${body.metricName}')
-            RETURNING (identifier, type, title, worker_identifier, metric_name)`
+            INSERT INTO graphs (type, title, worker_identifier, metric_name, units)
+            VALUES ('${body.type}', '${body.title}', '${body.workerIdentifier}', '${body.metricName}', '${body.units}')
+            RETURNING identifier, type, title, worker_identifier AS workerIdentifier, metric_name AS metricName, units`
         );
         this.body = {
             errors: [],
@@ -206,8 +206,8 @@ router.get(
             FROM metrics
             INNER JOIN altar_workers
             ON metrics.worker_identifier = altar_workers.worker_identifier
-            GROUP BY metrics.name
-            WHERE altar_workers.worker_identifier = ${workerIdentifier}`);
+            WHERE altar_workers.worker_identifier = ${workerIdentifier}
+            GROUP BY metrics.name`);
         this.body = {
             errors: [],
             metrics: metrics.rows
