@@ -48,7 +48,7 @@ app.use(function *(next) {
 
 // Debug route at / for outputting server information
 router.get('/', function *(next) {
-    this.body = `Spirit by Kakushin Labs.`;
+    this.body = `Spirit by Greygarden.`;
     yield next;
 });
 
@@ -136,8 +136,8 @@ router.post(
         // Grab the json from the request body
         const body = this.request.body || {};
         const graph = yield database.queryPromise(`
-            INSERT INTO graphs (type, title, worker_identifier, metric_name, units)
-            VALUES ('${body.type}', '${body.title}', '${body.workerIdentifier}', '${body.metricName}', '${body.units}')
+            INSERT INTO graphs (type)
+            VALUES ('${body.type}')
             RETURNING identifier, type, title, worker_identifier AS workerIdentifier, metric_name AS metricName, units`
         );
         this.body = {
@@ -147,6 +147,45 @@ router.post(
         yield next;
     }
 );
+
+// Update a graph
+router.post(
+    '/update_graph',
+    function *(next) {
+        // Grab the json from the request body
+        const body = this.request.body || {};
+        const graphResult = yield database.queryPromise(`
+            UPDATE graphs SET
+            title = '${body.graphProps.title}', worker_identifier = '${body.graphProps.workerIdentifier}', metric_name = '${body.graphProps.metricName}', units = '${body.graphProps.units}'
+            WHERE identifier = ${body.identifier}
+            RETURNING identifier, type, title, worker_identifier, metric_name, units`
+        );
+
+        if (graphResult.rows.length === 0) {
+            this.body = {
+                errors: [
+                    `Graph with identifier ${body.identifier} does not exist.`
+                ]
+            }
+            yield next
+            return
+        }
+ 
+        const graph = graphResult.rows[0]
+        this.body = {
+            errors: [],
+            graph: {
+                identifier: graph.identifier,
+                type: graph.type,
+                title: graph.title,
+                workerIdentifier: graph.worker_identifier,
+                metricName: graph.metric_name,
+                units: graph.units
+            }
+        }
+        yield next
+    }
+)
 
 // Delete a graph
 router.post(
@@ -187,7 +226,7 @@ router.post(
         yield database.queryPromise(database.SQL`INSERT INTO altar_workers (worker_identifier) VALUES (${body.workerIdentifier}) ON CONFLICT (worker_identifier) DO NOTHING`);
         // Insert the metric
         yield database.queryPromise(database.SQL`INSERT INTO metrics (worker_identifier, name, value, units) VALUES (${body.workerIdentifier}, ${body.metricName}, ${body.metricValue}, ${body.metricUnits})`);
-        // Emit an event over any connected web socketes
+        // Emit an event over any connected web sockets
         io.emit(`metric-${body.workerIdentifier}-${body.metricName}`, {
             value: body.metricValue,
             units: body.metrivUnits
