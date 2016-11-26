@@ -6,5 +6,8 @@ backend_api_config 2016-09-22T03:39:36Z root <root@51fd8106b1d3> # Create the ba
 add_altar_workers_table 2016-09-22T06:19:26Z root <root@2d93a4a48107> # Adds a table that keeps track of altar workers.
 add_metrics_table 2016-09-22T06:28:18Z root <root@2d93a4a48107> # Adds the storage table for metrics.
 add_user_table 2016-09-28T06:14:04Z root <root@56c800e7101a> # Adds the user table with email and password info.
-add_worker_name 2016-09-28T22:52:50Z root <root@56c800e7101a> # Adds a name column to the worker table that can be modified by users.
+add_dashboards_table 2016-11-26T00:04:15Z root <root@ad611e8ba081> # Adds a table for storing user created dashboards
 add_graphs_table 2016-10-01T05:53:10Z root <root@d86345812823> # Create the table for storing graph configurations
+add_altar_worker_controls 2016-11-20T08:02:35Z root <root@cc46d794ab0e> # Adds a table for tracking modifiable control values exposed by workers
+add_altar_worker_control_value_updates 2016-11-20T08:10:39Z root <root@cc46d794ab0e> # Adds a table for tracking modifications to control values
+add_dashboard_controls_table 2016-11-25T23:56:11Z root <root@ad611e8ba081> # Adds a table for tracking controls that have been created for dashboards

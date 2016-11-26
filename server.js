@@ -4,14 +4,14 @@
 // -------------------------------------------------------------
 'use strict';
 
-const koa       = require('koa');
-const router    = require('koa-router')();
-const body      = require('koa-parse-json')();
-const session   = require('koa-session');
-const database  = require('./libs/database');
-const io        = require('socket.io')('8082');
-const crypto    = require('crypto');
-
+const koa           = require('koa');
+const router        = require('koa-router')();
+const body          = require('koa-parse-json')();
+const session       = require('koa-session');
+const database      = require('./libs/database');
+const clientSocket  = require('socket.io')('8082');
+const managerSocket = require('socket.io')('8083');
+const crypto        = require('crypto');
 
 // Grab the port number to use for the server from the runtime environment
 const port = parseInt(process.env.NODEJS_LISTEN_PORT, 10) || 8080;
@@ -108,26 +108,144 @@ router.post(
     }
 );
 
-// Get all graphs
+// Get all of a users dashboards
 router.get(
-    '/graphs',
+    '/dashboards',
     function *(next) {
-        const graphs = yield database.queryPromise('SELECT * from graphs');
+        const dashboards = yield database.queryPromise(database.SQL`SELECT * from dashboards WHERE user_identifier = ${this.session.userIdentifier}`);
         this.body = {
             errors: [],
-            graphs: graphs.rows.map((graph) => {
-                return { 
-                    identifier: graph.identifier,
-                    type: graph.type,
-                    title: graph.title,
-                    workerIdentifier: graph.worker_identifier,
-                    metricName: graph.metric_name,
-                    units: graph.units
+            dashboards: dashboards.rows.map((dashboard) => {
+                return {
+                    identifier: dashboard.identifier,
+                    title: dashboard.title,
                 }
             })
         }
+        yield next
     }
-);
+)
+
+// Get a single dashboard by its id
+router.get(
+    '/get_dashboard',
+    function *(next) {
+        if (this.query.dashboardIdentifier) {
+            const dashboard = yield database.queryPromise(database.SQL`SELECT * from dashboards WHERE identifier = ${this.query.dashboardIdentifier}`)
+            this.body = {
+                errors: [],
+                dashboard: dashboard.rows[0]
+            }
+        } else {
+            this.body = {
+                errors: [
+                    `Dashboard with identifier ${this.query.dashboardIdentifier} was not found.`
+                ]
+            }
+        }
+        yield next
+    }
+)
+
+// Create a new dashboard
+router.post(
+    '/create_dashboard',
+    function *(next) {
+        // Grab the json from the request body
+        const dashboard = yield database.queryPromise(`
+            INSERT INTO dashboards (user_identifier, title)
+            VALUES (${this.session.userIdentifier}, 'New Dashboard')
+            RETURNING identifier, title
+        `);
+        this.body = {
+            errors: [],
+            dashboard: dashboard.rows[0]
+        }
+        yield next;
+    }
+)
+
+// Update a dashboard
+router.post(
+    '/update_dashboard',
+    function *(next) {
+        // Grab the json from the request body
+        const body = this.request.body || {};
+        const dashboardResult = yield database.queryPromise(`
+            UPDATE dashboards SET
+            title = '${body.dashboardProps.title}'
+            WHERE identifier = ${body.identifier}
+            RETURNING identifier, title
+        `);
+
+        if (dashboardResult.rows.length === 0) {
+            this.body = {
+                errors: [
+                    `Missing parameter dashboardIdentifier`
+                ]
+            }
+            yield next
+            return
+        }
+
+        const dashboard = dashboardResult.rows[0]
+        this.body = {
+            errors: [],
+            dashboard: {
+                identifier: dashboard.identifier,
+                title: dashboard.title,
+            }
+        }
+        yield next
+    }
+)
+
+// Delete a dashboard
+router.post(
+    '/delete_dashboard',
+    function *(next) {
+        // Grab the json from the request body
+        const body = this.request.body || {};
+        yield database.queryPromise(`
+            DELETE FROM dashboards WHERE identifier = ${body.identifier}
+        `);
+        this.body = {
+            errors: []
+        }
+        yield next;
+    }
+)
+
+// Get all graphs for a particular dashboard
+router.get(
+    '/graphs',
+    function *(next) {
+        if (this.query.dashboardIdentifier) {
+            const graphs = yield database.queryPromise(database.SQL`SELECT * from graphs WHERE dashboard_identifier = ${this.query.dashboardIdentifier}`);
+            this.body = {
+                errors: [],
+                graphs: graphs.rows.map((graph) => {
+                    return {
+                        identifier: graph.identifier,
+                        type: graph.type,
+                        title: graph.title,
+                        dashboardIdentifier: graph.dashboard_identifier,
+                        workerIdentifier: graph.worker_identifier,
+                        metricName: graph.metric_name,
+                        units: graph.units
+                    }
+                })
+            }
+        } else {
+            this.body = {
+                errors: [
+                    'Missing parameter: dashboardIdentifier'
+                ]
+            }
+        }
+        yield next
+    }
+)
 
 // Create a new graph
 router.post(
@@ -135,14 +253,22 @@ router.post(
     function *(next) {
         // Grab the json from the request body
         const body = this.request.body || {};
-        const graph = yield database.queryPromise(`
-            INSERT INTO graphs (type)
-            VALUES ('${body.type}')
-            RETURNING identifier, type, title, worker_identifier AS workerIdentifier, metric_name AS metricName, units`
-        );
-        this.body = {
-            errors: [],
-            graph: graph.rows[0]
+        if (body.dashboardIdentifier && body.type) {
+            const graph = yield database.queryPromise(`
+                INSERT INTO graphs (dashboard_identifier, type)
+                VALUES (${body.dashboardIdentifier}, '${body.type}')
+                RETURNING identifier, dashboard_identifier, type, title, worker_identifier AS workerIdentifier, metric_name AS metricName, units`
+            );
+            this.body = {
+                errors: [],
+                graph: graph.rows[0]
+            }
+        } else {
+            this.body = {
+                errors: [
+                    'Missing parameters: dashboardIdentifier, type'
+                ]
+            }
         }
         yield next;
     }
@@ -170,7 +296,7 @@ router.post(
             yield next
             return
         }
- 
+
         const graph = graphResult.rows[0]
         this.body = {
             errors: [],
@@ -227,7 +353,7 @@ router.post(
         // Insert the metric
         yield database.queryPromise(database.SQL`INSERT INTO metrics (worker_identifier, name, value, units) VALUES (${body.workerIdentifier}, ${body.metricName}, ${body.metricValue}, ${body.metricUnits})`);
         // Emit an event over any connected web sockets
-        io.emit(`metric-${body.workerIdentifier}-${body.metricName}`, {
+        clientSocket.emit(`metric-${body.workerIdentifier}-${body.metricName}`, {
             value: body.metricValue,
             units: body.metrivUnits
         });
@@ -323,6 +449,51 @@ router.get(
         yield next;
     }
 );
+
+// Send a control value update to a manager
+router.post(
+    '/update_control_value',
+    function *() {
+        // Grab the json from the request body
+        const body = this.request.body || {};
+        if (body.workerIdentifier && body.controlKey && body.controlValue) {
+            // Emit an event over any connected web sockets
+            managerSocket.emit(`control-update-${body.workerIdentifier}`, JSON.stringify({
+                controlKey: body.controlKey,
+                controlValue: body.controlValue
+            }));
+        }
+    }
+)
+
+// Create a control value and associate it with a worker
+router.post(
+    '/create_worker_control',
+    function *(next) {
+        // Grab the json from the request body
+        const body = this.request.body || {};
+        if (body.workerIdentifier && body.controlKey) {
+            const workerQuery = yield database.queryPromise(database.SQL`SELECT identifier FROM altar_workers WHERE worker_identifier = ${body.workerIdentifier}`)
+            if (workerQuery.rows.length > 0) {
+                yield database.queryPromise(database.SQL`
+                    INSERT INTO altar_worker_controls (altar_worker_identifier, control_key)
+                    VALUES (${workerQuery.rows[0].identifier}, ${body.controlKey})
+                    ON CONFLICT (altar_worker_identifier, control_key) DO NOTHING
+                `)
+                this.body = {
+                    success: true
+                }
+            } else {
+                this.body = {
+                    errors: [
+                        { message: 'Error: No worker with that ID was found.' }
+                    ]
+                }
+            }
+        }
+        yield next
+    }
+)
 
 // Add CORS headers
 app.use(function *(next) {
