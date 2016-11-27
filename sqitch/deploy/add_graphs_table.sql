@@ -6,7 +6,6 @@ BEGIN;
 
 CREATE TABLE graphs (
     identifier              serial primary key,
-    dashboard_identifier    integer REFERENCES dashboards(identifier) NOT NULL,
     title                   text,
     worker_identifier       text references altar_workers(worker_identifier),
     metric_name             text,

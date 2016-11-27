@@ -11,3 +11,4 @@ add_graphs_table 2016-10-01T05:53:10Z root <root@d86345812823> # Create the tabl
 add_altar_worker_controls 2016-11-20T08:02:35Z root <root@cc46d794ab0e> # Adds a table for tracking modifiable control values exposed by workers
 add_altar_worker_control_value_updates 2016-11-20T08:10:39Z root <root@cc46d794ab0e> # Adds a table for tracking modifications to control values
 add_dashboard_controls_table 2016-11-25T23:56:11Z root <root@ad611e8ba081> # Adds a table for tracking controls that have been created for dashboards
+add_dashboard_components_table 2016-11-27T00:05:15Z root <root@a93d942dd26f> # Adds a table that stores components such as graphs and controls that are associated with a dashboard

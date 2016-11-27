@@ -4,14 +4,16 @@
 // -------------------------------------------------------------
 'use strict';
 
-const koa           = require('koa');
-const router        = require('koa-router')();
-const body          = require('koa-parse-json')();
-const session       = require('koa-session');
-const database      = require('./libs/database');
-const clientSocket  = require('socket.io')('8082');
-const managerSocket = require('socket.io')('8083');
-const crypto        = require('crypto');
+const koa                   = require('koa');
+const router                = require('koa-router')();
+const body                  = require('koa-parse-json')();
+const session               = require('koa-session');
+const database              = require('./libs/database');
+const clientSocket          = require('socket.io')('8082');
+const managerSocket         = require('socket.io')('8083');
+const crypto                = require('crypto');
+const dashboardEndpoints    = require('./endpoints/dashboard-endpoints')
+const dashboardHelper       = require('./helpers/dashboard-helper')
 
 // Grab the port number to use for the server from the runtime environment
 const port = parseInt(process.env.NODEJS_LISTEN_PORT, 10) || 8080;
@@ -108,160 +110,70 @@ router.post(
     }
 );
 
+// -------------------------------------------------------------
+// DASHBOARD ENDPOINTS
+// -------------------------------------------------------------
+
 // Get all of a users dashboards
 router.get(
     '/dashboards',
-    function *(next) {
-        const dashboards = yield database.queryPromise(database.SQL`SELECT * from dashboards WHERE user_identifier = ${this.session.userIdentifier}`);
-        this.body = {
-            errors: [],
-            dashboards: dashboards.rows.map((dashboard) => {
-                return {
-                    identifier: dashboard.identifier,
-                    title: dashboard.title,
-                }
-            })
-        }
-        yield next
-    }
+    dashboardEndpoints.dashboards
 )
 
 // Get a single dashboard by its id
 router.get(
     '/get_dashboard',
-    function *(next) {
-        if (this.query.dashboardIdentifier) {
-            const dashboard = yield database.queryPromise(database.SQL`SELECT * from dashboards WHERE identifier = ${this.query.dashboardIdentifier}`)
-            this.body = {
-                errors: [],
-                dashboard: dashboard.rows[0]
-            }
-        } else {
-            this.body = {
-                errors: [
-                    `Dashboard with identifier ${this.query.dashboardIdentifier} was not found.`
-                ]
-            }
-        }
-        yield next
-    }
+    dashboardEndpoints.getDashboard
 )
 
 // Create a new dashboard
 router.post(
     '/create_dashboard',
-    function *(next) {
-        // Grab the json from the request body
-        const dashboard = yield database.queryPromise(`
-            INSERT INTO dashboards (user_identifier, title)
-            VALUES (${this.session.userIdentifier}, 'New Dashboard')
-            RETURNING identifier, title
-        `);
-        this.body = {
-            errors: [],
-            dashboard: dashboard.rows[0]
-        }
-        yield next;
-    }
+    dashboardEndpoints.createDashboard
 )
 
 // Update a dashboard
 router.post(
     '/update_dashboard',
-    function *(next) {
-        // Grab the json from the request body
-        const body = this.request.body || {};
-        const dashboardResult = yield database.queryPromise(`
-            UPDATE dashboards SET
-            title = '${body.dashboardProps.title}'
-            WHERE identifier = ${body.identifier}
-            RETURNING identifier, title
-        `);
-
-        if (dashboardResult.rows.length === 0) {
-            this.body = {
-                errors: [
-                    `Missing parameter dashboardIdentifier`
-                ]
-            }
-            yield next
-            return
-        }
-
-        const dashboard = dashboardResult.rows[0]
-        this.body = {
-            errors: [],
-            dashboard: {
-                identifier: dashboard.identifier,
-                title: dashboard.title,
-            }
-        }
-        yield next
-    }
+    dashboardEndpoints.updateDashboard
 )
 
 // Delete a dashboard
 router.post(
     '/delete_dashboard',
-    function *(next) {
-        // Grab the json from the request body
-        const body = this.request.body || {};
-        yield database.queryPromise(`
-            DELETE FROM dashboards WHERE identifier = ${body.identifier}
-        `);
-        this.body = {
-            errors: []
-        }
-        yield next;
-    }
+    dashboardEndpoints.deleteDashboard
 )
 
-// Get all graphs for a particular dashboard
+// Gets all components associated with a dashboard (i.e graphs and controls)
 router.get(
-    '/graphs',
-    function *(next) {
-        if (this.query.dashboardIdentifier) {
-            const graphs = yield database.queryPromise(database.SQL`SELECT * from graphs WHERE dashboard_identifier = ${this.query.dashboardIdentifier}`);
-            this.body = {
-                errors: [],
-                graphs: graphs.rows.map((graph) => {
-                    return {
-                        identifier: graph.identifier,
-                        type: graph.type,
-                        title: graph.title,
-                        dashboardIdentifier: graph.dashboard_identifier,
-                        workerIdentifier: graph.worker_identifier,
-                        metricName: graph.metric_name,
-                        units: graph.units
-                    }
-                })
-            }
-        } else {
-            this.body = {
-                errors: [
-                    'Missing parameter: dashboardIdentifier'
-                ]
-            }
-        }
-        yield next
-    }
+    '/dashboard_components',
+    dashboardEndpoints.dashboardComponents
 )
 
-// Create a new graph
+// Create a new graph and add it to a dashboard
 router.post(
     '/create_graph',
     function *(next) {
-        // Grab the json from the request body
         const body = this.request.body || {};
+        body.componentOrder = body.componentOrder || 0
         if (body.dashboardIdentifier && body.type) {
-            const graph = yield database.queryPromise(`
-                INSERT INTO graphs (dashboard_identifier, type)
-                VALUES (${body.dashboardIdentifier}, '${body.type}')
-                RETURNING identifier, dashboard_identifier, type, title, worker_identifier AS workerIdentifier, metric_name AS metricName, units`
-            );
+            const graph = yield database.queryPromise(database.SQL`
+                INSERT INTO graphs (type)
+                VALUES (${body.type})
+                RETURNING identifier, type, title, worker_identifier AS workerIdentifier, metric_name AS metricName, units
+            `)
+            yield dashboardHelper.setComponentOrder({
+                dashboardIdentifier: body.dashboardIdentifier,
+                graphIdentifier: graph.rows[0].identifier,
+                controlIdentifier: null,
+            }, 0)
             this.body = {
                 errors: [],
-                graph: graph.rows[0]
+                graph: {
+                    identifier: graph.rows[0].identifier,
+                    type: graph.rows[0].type,
+                    componentType: 'graph'
+                }
             }
         } else {
             this.body = {
@@ -306,7 +218,8 @@ router.post(
                 title: graph.title,
                 workerIdentifier: graph.worker_identifier,
                 metricName: graph.metric_name,
-                units: graph.units
+                units: graph.units,
+                componentType: 'graph'
             }
         }
         yield next
@@ -317,17 +230,102 @@ router.post(
 router.post(
     '/delete_graph',
     function *(next) {
-        // Grab the json from the request body
         const body = this.request.body || {};
+
+        const component = yield database.queryPromise(database.SQL`
+            SELECT identifier, dashboard_identifier, component_order
+            FROM dashboard_components
+            WHERE graph_identifier = ${body.identifier}
+        `)
+
+        // Decrement the order of all components after the one we're moving
+        yield database.queryPromise(`
+            UPDATE dashboard_components
+            SET component_order = component_order - 1
+            WHERE component_order > ${component.rows[0].component_order}
+            AND dashboard_identifier = ${component.rows[0].dashboard_identifier}
+        `)
+
+        yield database.queryPromise(`
+            DELETE FROM dashboard_components WHERE identifier = ${component.rows[0].identifier}
+        `);
+
         yield database.queryPromise(`
             DELETE FROM graphs WHERE identifier = ${body.identifier}
         `);
+
         this.body = {
             errors: []
         }
         yield next;
     }
 );
+
+// Create a new control and add it to a dashboard
+router.post(
+    '/create_control',
+    function *(next) {
+        const body = this.request.body || {};
+        body.componentOrder = body.componentOrder || 0
+        if (body.dashboardIdentifier) {
+            const control = yield database.queryPromise(database.SQL`
+                INSERT INTO dashboard_controls DEFAULT VALUES
+                RETURNING identifier, type, title, altar_worker_control_identifier AS workerControlIdentifier
+            `);
+            yield database.queryPromise(database.SQL`
+                INSERT INTO dashboard_components (dashboard_identifier, control_identifier, component_order)
+                VALUES (${body.dashboardIdentifier}, ${control.rows[0].identifier}, ${body.componentOrder})
+            `)
+            this.body = {
+                errors: [],
+                control: control.rows[0]
+            }
+        } else {
+            this.body = {
+                errors: [
+                    'Missing parameters: dashboardIdentifier'
+                ]
+            }
+        }
+        yield next;
+    }
+);
+
+// Update a control
+router.post(
+    '/update_control',
+    function *(next) {
+        const body = this.request.body || {};
+        const controlResult = yield database.queryPromise(database.SQL`
+            UPDATE dashboard_controls SET
+            title = ${body.controlProps.title}, worker_control_identifier = ${body.controlProps.workerControlIdentifier}
+            WHERE identifier = ${body.identifier}
+            RETURNING identifier, worker_control_identifier, title
+        `);
+
+        if (controlResult.rows.length === 0) {
+            this.body = {
+                errors: [
+                    `Control with identifier ${body.identifier} does not exist.`
+                ]
+            }
+            yield next
+            return
+        }
+
+        const control = controlResult.rows[0]
+        this.body = {
+            errors: [],
+            control: {
+                identifier: control.identifier,
+                type: control.type,
+                title: control.title,
+                workerControlIdentifier: control.worker_identifier,
+            }
+        }
+        yield next
+    }
+)
 
 // List available workers
 router.get(
@@ -473,22 +471,17 @@ router.post(
         // Grab the json from the request body
         const body = this.request.body || {};
         if (body.workerIdentifier && body.controlKey) {
-            const workerQuery = yield database.queryPromise(database.SQL`SELECT identifier FROM altar_workers WHERE worker_identifier = ${body.workerIdentifier}`)
-            if (workerQuery.rows.length > 0) {
-                yield database.queryPromise(database.SQL`
-                    INSERT INTO altar_worker_controls (altar_worker_identifier, control_key)
-                    VALUES (${workerQuery.rows[0].identifier}, ${body.controlKey})
-                    ON CONFLICT (altar_worker_identifier, control_key) DO NOTHING
-                `)
-                this.body = {
-                    success: true
-                }
-            } else {
-                this.body = {
-                    errors: [
-                        { message: 'Error: No worker with that ID was found.' }
-                    ]
-                }
+            let workerQuery = yield database.queryPromise(database.SQL`SELECT identifier FROM altar_workers WHERE worker_identifier = ${body.workerIdentifier}`)
+            if (workerQuery.rows.length === 0) {
+                workerQuery = yield database.queryPromise(database.SQL`INSERT INTO altar_workers (worker_identifier) VALUES (${body.workerIdentifier}) RETURNING identifier`)
+            }
+            yield database.queryPromise(database.SQL`
+                INSERT INTO altar_worker_controls (altar_worker_identifier, control_key)
+                VALUES (${workerQuery.rows[0].identifier}, ${body.controlKey})
+                ON CONFLICT (altar_worker_identifier, control_key) DO NOTHING
+            `)
+            this.body = {
+                success: true
             }
         }
         yield next
